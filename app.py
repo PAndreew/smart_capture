@@ -1,12 +1,19 @@
 import sys
 import os
 import io
+import urllib.parse
 from PIL import Image
-from PySide6.QtCore import QObject, Signal, QUrl, Qt, QPoint, QRect, QSize, Slot
+from PySide6.QtCore import QObject, Signal, QUrl, Qt, QPoint, QRect, QSize, Slot, QDir
 from PySide6.QtGui import QGuiApplication, QScreen, QPixmap, QPainter, QColor, QCursor
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtWidgets import QApplication, QWidget
 import google.generativeai as genai
+from dotenv import load_dotenv
+
+load_dotenv()
+
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+
 # --- LLM Integration (Replace with your actual LLM code) ---
 def perform_ocr_with_gemini(image_data, gemini_api_key):
     """
@@ -22,7 +29,7 @@ def perform_ocr_with_gemini(image_data, gemini_api_key):
     try:
         # Configure Gemini
         genai.configure(api_key=gemini_api_key)
-        model = genai.GenerativeModel('gemini-2-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash')
 
         # Prepare the image for Gemini
         image = Image.open(io.BytesIO(image_data))
@@ -58,7 +65,7 @@ class SnippingTool(QObject):
         self.end_pos = None
         self.is_snipping = False  # Flag for the snipping state
         self.overlay_window = None # Reference to the full screen overlay
-        self.gemini_api_key = os.environ.get("GEMINI_API_KEY") #  Get the key from environment variables
+        self.gemini_api_key = os.environ.get("GOOGLE_API_KEY") #  Get the key from environment variables
         print("SnippingTool initialised")  # Verify init is called
         print(f"type(self.start_capture): {type(self.start_capture)}")  # Check the type
         print(f"self.start_capture: {self.start_capture}")  # Inspect the actual object
@@ -121,13 +128,22 @@ class SnippingTool(QObject):
         temp_file = "screenshot.png"  # Or use tempfile.NamedTemporaryFile
         pixmap.save(temp_file, "PNG")  # Save the screenshot
 
-        self.screenshotReady.emit(QUrl.fromLocalFile(os.path.abspath(temp_file)).toString())
+        absolute_path = os.path.abspath(temp_file)
+        # Using QDir to ensure a valid local file URL
+        local_path = QDir.toNativeSeparators(absolute_path) # Ensures the same path and file is being emmitted.
+
+        print(f"Emitting local file path: {local_path}")
+        self.screenshotReady.emit(local_path) # emit filepath rather than url
 
     @Slot(str)
     def process_ocr(self, image_path):
         """Processes OCR on the image and emits the result."""
         try:
-            with open(image_path, "rb") as image_file:
+            path_part = image_path.replace("file:///", "")
+
+            # 2. URL Decode
+            decoded_path = urllib.parse.unquote(path_part)
+            with open(decoded_path, "rb") as image_file:  # Use the encoded path
                 image_data = image_file.read()
 
             ocr_result = perform_ocr_with_gemini(image_data, self.gemini_api_key)

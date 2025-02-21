@@ -55,7 +55,7 @@ ApplicationWindow {
             id: ocrButton
             text: "Process OCR"
             onClicked: {
-                snippingTool.process_ocr(capturedImage.source.toString().replace("file://", "")); // Path to file
+                snippingTool.process_ocr(capturedImage.source.toString()); // Path to file
             }
             enabled: capturedImage.source !== ""
         }
@@ -73,7 +73,8 @@ ApplicationWindow {
         target: snippingTool
 
         function onScreenshotReady(imagePath) {
-            capturedImage.source = imagePath;
+          console.log ("File Path from local: " + imagePath);
+          capturedImage.source = "file:///" + imagePath;
         }
 
         function onOcrResultReady(result) {
